@@ -1,159 +1,198 @@
 # Command Structure & Metadata
 
 
-This chapter explains the core convention `bash-cli` uses for organizing your command-line interface (CLI) commands and their associated help information. Understanding this structure is fundamental to building and managing your CLI application effectively.
+This chapter explains how `bash-cli` organizes commands and their associated help information using a simple file and directory structure. Understanding this convention is key to building and managing your CLI application.
 
-Imagine you are building a new CLI tool, maybe for managing cloud resources. You need commands like `resource create`, `resource list`, and `resource delete`. How do you organize the code for these commands? How do you ensure users can easily discover them and get help? `bash-cli` solves this by mapping your desired command structure directly to a directory structure on your filesystem.
+Imagine you are building a command-line tool called `my-app`. You want to add a command to manage configuration, specifically `my-app config set <key> <value>`. How do you tell `bash-cli` where the code for this command lives and how to display help for it? `bash-cli` solves this by mapping command arguments directly to files and directories within your project's `app/` folder.
 
-## Key Concepts
+## Key concepts
 
-The command structure relies on a few simple conventions within the `app/` directory of your `bash-cli` project:
+The core idea is **convention over configuration**. Instead of complex registration code, `bash-cli` relies on a predefined structure:
 
-1.  **Executable Scripts as Commands:** Every executable file within the `app/` directory hierarchy represents a command or subcommand. For example, `app/status` corresponds to the command `mycli status`, and `app/user/create` corresponds to `mycli user create`.
-2.  **Directories as Command Groups:** Directories group related commands. The directory `app/user/` acts as a namespace for user-related commands like `create` and `delete`.
-3.  **`.help` Files for Documentation:**
-    *   A file named `<command_name>.help` placed next to a command script (`app/user/create.help` for `app/user/create`) contains the detailed help text for that specific command.
-    *   A file named `.help` inside a directory (`app/user/.help`) contains help text describing the command group or category represented by that directory.
-4.  **`.usage` Files for Argument Summaries:** A file named `<command_name>.usage` placed next to a command script (`app/user/create.usage`) provides a short, one-line summary of the command's arguments, often shown in help listings.
+1.  **Command Scripts:** Each executable command or subcommand corresponds to an executable script file within the `app/` directory hierarchy. For `my-app config set`, the script would be located at `app/config/set`. The script file can have any name, but typically it matches the command name (e.g., `set`). It doesn't require a `.sh` extension.
+2.  **Directory Hierarchy:** Subcommands are represented by nested directories. The command `my-app config set` maps to the file `set` inside the `app/config/` directory.
+3.  **Metadata Files:**
+    *   **`.help` Files:** Contain detailed help text.
+        *   For a command script like `app/config/set`, the corresponding help file is `app/config/set.help`.
+        *   For a command category (a directory like `app/config/`), the help file is `app/config/.help`. This provides context when a user runs `my-app config help` or just `my-app config`.
+    *   **`.usage` Files:** Contain a short, one-line summary of the command's arguments, displayed in help listings. For `app/config/set`, the usage file is `app/config/set.usage`.
 
-## Using the Structure
+## Using the structure
 
-This file-based system makes managing your commands intuitive. You primarily interact with this structure using the built-in `create` and `rm` commands provided by `bash-cli`.
+Let's revisit the use case: adding `my-app config set <key> <value>`.
 
-### Creating Commands
+Using the `bash-cli` conventions, you would create the following file structure within your project:
 
-To add a new command, you use the `bash-cli create` command followed by the desired command path.
+```
+my-app-project/
+└── app/
+    ├── config/              # Directory for 'config' subcommand
+    │   ├── .help            # Help text for the 'config' category
+    │   ├── set              # Executable script for 'set' subcommand
+    │   ├── set.help         # Detailed help for 'set'
+    │   └── set.usage        # Usage line for 'set'
+    └── .bash_cli            # Marker file for the project root
+    # Other top-level commands or directories...
+```
 
-**Use Case:** Let's add a command `config set` to our CLI.
+You don't need to create these manually. `bash-cli` provides built-in commands to manage this structure.
 
-**Input:**
+**Creating a Command:**
+
+Use the `bash-cli command create` command (which is part of the core `bash-cli` framework itself). To create our example command:
 
 ```bash
-bash-cli create config set
+bash-cli command create config set
 ```
 
-**Result:**
+This command will:
 
-`bash-cli` will create the necessary directory and files within the `app/` directory:
+1.  Create the `app/config/` directory if it doesn't exist.
+2.  Create a placeholder `app/config/.help` file if it doesn't exist.
+3.  Create the executable script `app/config/set`.
+4.  Create the help file `app/config/set.help`.
+5.  Create the usage file `app/config/set.usage`.
 
-```
-app/
-├── config/
-│   ├── .help         # Help file for the 'config' category
-│   └── set           # Executable script for 'config set' command
-│   ├── set.help      # Detailed help for 'config set'
-│   └── set.usage     # Argument summary for 'config set'
-└── ... (other commands/directories) ...
-```
-
-It generates placeholder content in these files:
-
-*   `app/config/set`: A basic executable Bash script.
-*   `app/config/set.help`: Placeholder help text.
-*   `app/config/set.usage`: Placeholder usage string.
-*   `app/config/.help`: Placeholder category help (if the `config` directory was newly created).
-
-You then edit these files to implement your command logic and provide meaningful documentation.
-
-### Removing Commands
-
-To remove a command or an entire command group, use the `bash-cli rm` command.
-
-**Use Case:** Let's remove the `config set` command we just created.
-
-**Input:**
+**Example `app/config/set` (Generated):**
 
 ```bash
-bash-cli rm config set
+#!/usr/bin/env bash
+# Script for 'my-app config set'
+echo -e "\033[36mTODO\033[39m: Implement this command"
+# Add logic here to handle <key> and <value> arguments ($1, $2, etc.)
 ```
 
-**Result:**
+**Example `app/config/set.usage` (Generated):**
 
-`bash-cli` will remove the script and its associated metadata files:
+```
+<key> <value>
+```
 
-*   Removes `app/config/set`
-*   Removes `app/config/set.help`
-*   Removes `app/config/set.usage`
+**Example `app/config/set.help` (Generated):**
 
-If removing the last command within a directory (e.g., `bash-cli rm config`), it can also remove the directory itself and its `.help` file.
+```
+ARGS  - The arguments you wish to provide to this command
 
-## Internal Implementation
+Sets a configuration key to a specific value.
+TODO: Fill out the help information for this command.
+```
 
-How does `bash-cli` use this structure? When a user runs your CLI (e.g., `mycli config set --key api_key --value 123`), the core [Command Dispatcher](02_command_dispatcher_.md) logic translates the input arguments (`config`, `set`) into a filesystem path (`app/config/set`).
+**Removing a Command:**
+
+Similarly, you can remove a command and its associated metadata files using `bash-cli command rm`:
+
+```bash
+bash-cli command rm config set
+```
+
+This command will remove `app/config/set`, `app/config/set.help`, and `app/config/set.usage`. If the `app/config` directory becomes empty (except possibly for `.help`), you might remove it manually or use standard shell commands like `rmdir`.
+
+## Internal implementation
+
+Under the hood, several core components interact with this file structure.
+
+1.  **[Command Dispatcher](02_command_dispatcher_.md):** When you run your CLI (e.g., `my-app config set key value`), the dispatcher translates the arguments (`config`, `set`) into a file path (`app/config/set`). It traverses the `app/` directory, matching arguments to subdirectories or files. Once it finds the executable script, it runs it, passing any remaining arguments (`key`, `value`).
+2.  **[Help Generation](03_help_generation_.md):** When help is requested (e.g., `my-app config set --help` or `my-app config help`), the help system looks for the corresponding `.help` and `.usage` files based on the command path derived by the dispatcher. It reads these files to construct the help output.
+3.  **[Bash Completion Logic](04_bash_completion_logic_.md):** The completion system inspects the `app/` directory structure to suggest available commands and subcommands when the user presses the `Tab` key.
+
+**Execution Flow Example (`my-app config set db user`)**
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant CLI_Entrypoint as mycli
+    participant CLI as my-app (Entrypoint)
     participant Dispatcher as Command Dispatcher
-    participant CommandScript as app/config/set
+    participant FS as Filesystem (app/)
+    participant Command as app/config/set
 
-    User->>CLI_Entrypoint: mycli config set --key api_key
-    CLI_Entrypoint->>Dispatcher: Process arguments ("config", "set", "--key", "api_key")
-    Dispatcher->>Dispatcher: Map "config", "set" to path "app/config/set"
-    Dispatcher-->>CommandScript: Execute app/config/set script
-    CommandScript-->>User: (Outputs result of command)
+    User->>CLI: Executes `my-app config set db user`
+    CLI->>Dispatcher: bcli_entrypoint("config", "set", "db", "user")
+    Dispatcher->>FS: Check 'app/config/' ?
+    FS-->>Dispatcher: Yes, directory exists
+    Dispatcher->>FS: Check 'app/config/set' ?
+    FS-->>Dispatcher: Yes, file exists and is executable
+    Dispatcher->>Command: Execute script with args ("db", "user")
+    Command-->>Dispatcher: Executes logic, returns exit code
+    Dispatcher-->>CLI: Returns exit code
+    CLI-->>User: Displays output / Exits with code
 ```
 
-The [Help Generation](03_help_generation_.md) system similarly uses this structure. When help is requested (e.g., `mycli config set --help` or `mycli config help`), it looks for the corresponding `.help` and `.usage` files based on the requested command path.
+**Code Insights:**
 
-The `create` and `rm` commands directly manipulate this file structure.
-
-**`create` Snippet (`app/command/create.sh`):**
-
-This part creates the command script file and makes it executable.
+The `create` command automates the file/directory setup. Here's a simplified view of its logic:
 
 ```bash
-# ... (determine CMD_DIR and CMD_NAME) ...
+# Simplified from app/command/create.sh
+# Assume arguments are "config" "set"
 
-# Create the executable script file
+APP_DIR="app" # Determined project app directory
+CMD_DIR="$APP_DIR"
+SUBDIRS=("config") # All args except last
+CMD_NAME="set"     # Last argument
+
+# Create directories if they don't exist
+for dir in "${SUBDIRS[@]}"; do
+    CMD_DIR="$CMD_DIR/$dir"
+    if [[ ! -d "$CMD_DIR" ]]; then
+        mkdir "$CMD_DIR"
+        # Create placeholder category help
+        echo "Help for $dir category" > "$CMD_DIR/.help"
+    fi
+done
+
+# Create the command script file
 cat > "$CMD_DIR/$CMD_NAME" <<EOT
 #!/usr/bin/env bash
-echo -e "\033[36mTODO\033[39m: Implement this command"
+# TODO: Implement command
 EOT
 chmod +x "$CMD_DIR/$CMD_NAME"
+
+# Create the .usage file
+echo "<key> <value>" > "$CMD_DIR/$CMD_NAME.usage"
+
+# Create the .help file
+echo "Detailed help for $CMD_NAME." > "$CMD_DIR/$CMD_NAME.help"
 ```
 
-This part creates the placeholder `.usage` and `.help` files.
+The dispatcher logic within `bash-cli.inc.sh` traverses this structure:
 
 ```bash
-# ... (determine CMD_DIR and CMD_NAME) ...
+# Simplified from bcli_entrypoint in bash-cli.inc.sh
+# Assume arguments $@ are ("config", "set", "db", "user")
 
-# Create the usage file
-echo "ARGS..." > "$CMD_DIR/$CMD_NAME.usage"
+cmd_file="$root_dir/app/" # Starts at app/
+cmd_arg_start=1
 
-# Create the help file
-cat > "$CMD_DIR/$CMD_NAME.help" <<EOT
-ARGS  - The arguments you wish to provide to this command
+# Loop through arguments, descending into directories
+while [[ -d "$cmd_file" && $cmd_arg_start -le $# ]]; do
+    # Check if arg is 'help' -> handle help display (see Help Generation)
+    # ...
 
-TODO: Fill out the help information for this command.
-EOT
-```
+    # Append argument to path if it's a directory component
+    cmd_file="$cmd_file/${!cmd_arg_start}" # e.g., app/config, then app/config/set
+    cmd_arg_start=$((cmd_arg_start+1))
+done
 
-**`rm` Snippet (`app/command/rm.sh`):**
+# cmd_file is now "app/config/set"
+# cmd_args are ("db", "user")
 
-This part removes the command script and its metadata if they exist.
-
-```bash
-# ... (determine CMD_DIR and CMD_NAME) ...
-
-if [[ -f "${CMD_DIR:?}/$CMD_NAME" ]]; then
-    rm -f "${CMD_DIR:?}/$CMD_NAME"
-    rm -f "${CMD_DIR:?}/$CMD_NAME.help"
-    rm -f "${CMD_DIR:?}/$CMD_NAME.usage"
-elif [[ -d "${CMD_DIR:?}/$CMD_NAME" ]]; then
-    # Logic to remove directory if it's a category
-    rm -Rf "${CMD_DIR:?}/$CMD_NAME"
+if [[ -f "$cmd_file" ]]; then
+    # Execute the command script
+    "$cmd_file" "${cmd_args[@]}"
+elif [[ -d "$cmd_file" ]]; then
+    # Ran out of args at a directory, show help for that dir
+    "$root_dir/help" "$0" "$@"
+else
+    # Command not found
+    # ... show error and help ...
 fi
 ```
 
-These commands ensure that the file structure always reflects the available commands and their associated documentation according to the convention.
-
 ## Conclusion
 
-The file and directory structure within `app/`, along with the `.help` and `.usage` metadata files, forms the backbone of command organization in `bash-cli`. This convention makes commands discoverable, simplifies management through tools like `create` and `rm`, and enables automated features like help generation and command dispatching.
+The file-based command structure is a core convention in `bash-cli`. It provides a simple, transparent way to organize your CLI's commands, subcommands, and their associated documentation (`.help` and `.usage` files). This structure is directly utilized by the [Command Dispatcher](02_command_dispatcher_.md), [Help Generation](03_help_generation_.md), and [Bash Completion Logic](04_bash_completion_logic_.md). The built-in `create` and `rm` commands help manage this structure efficiently.
 
-Next, we will explore how user input is translated into the execution of these command scripts in the [Command Dispatcher](02_command_dispatcher_.md) chapter.
+[Next Chapter: Command Dispatcher](02_command_dispatcher_.md)
 
 ---
 
