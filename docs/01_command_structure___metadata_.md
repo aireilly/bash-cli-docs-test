@@ -1,122 +1,92 @@
 # Command Structure & Metadata
 
-This chapter describes how commands are structured within a `bash-cli` project.  Understanding this structure enables you to easily create, manage, and extend your command-line interface.  This chapter uses the creation of a simple `greet` command as a running example.
+This chapter describes how commands are organized within a `bash-cli` project.  Understanding this structure is essential for creating, removing, and managing commands within your CLI.  As a concrete example, imagine you're building a CLI for managing your website and you want to add a new command, `deploy`, under a `site` category.  This chapter will show you how.
 
-## Concept: Organizing Commands
+## Concept: Command Organization
 
-This section explains how `bash-cli` organizes commands. The structure provides a clear and consistent way to manage even complex CLIs with many subcommands.
+This section explains the file system layout that `bash-cli` uses to organize commands. `bash-cli` uses a simple, directory-based structure to organize CLI commands within the `app/` directory. Each directory represents a category, and each file within a directory represents a command or subcommand.
 
-`bash-cli` uses a directory and file structure within the `app/` directory to represent your CLI's commands and subcommands. Each command corresponds to an executable script within this hierarchy.  For example, the command `mycli greet john` would be represented by the script `app/greet.sh`, located within your project's `app` directory. Subcommands are organized using nested directories; `mycli user create john` maps to `app/user/create.sh`.
+Each command script (e.g., `deploy`) is an executable file located within the `app/` directory.  Along with the command script, two additional files may exist:
 
-Alongside each command script (e.g., `greet.sh`), two additional files enhance documentation and usage:
+* `<command_name>.help`: This file contains the detailed help documentation for the command.
+* `<command_name>.usage`: This file summarizes the arguments the command accepts.
 
-- `<command>.help`: Contains detailed help text for the command.
-- `<command>.usage`: Summarizes the command's arguments.
+Directories can also have a `.help` file to describe the category.  The marker file `app/.bash_cli` denotes the root of the CLI project.
 
-Categories of commands (represented by directories) can also have a `.help` file to provide overview information.
+## Creating and Removing Commands
 
+The `create` and `rm` commands manipulate the command structure.  Let's revisit our use case of creating a `deploy` command under the `site` category.
 
-## Procedure: Creating a Command
+### Creating the `site/deploy` Command
 
-This section describes the steps to create a new command.  We'll use the `create` command to build our example `greet` command.
-
-**Prerequisites:** A `bash-cli` project initialized with `bash-cli init`.
-
-**Procedure:**
-
-1. **Navigate to your project directory.** This is the directory where you ran `bash-cli init` and where the `app/` directory is.
-2. **Create the `greet` command:**
-   ```bash
-   bash-cli create greet
-   ```
-   This command creates `app/greet.sh`, `app/greet.help`, and `app/greet.usage`.
-
-**Verification:**
-
-You should now see the following files in your `app/` directory:
-
-```
-app/
-├── greet.help
-├── greet.sh
-└── greet.usage
+```bash
+./<your_cli_name> create site deploy
 ```
 
-**Troubleshooting:**
+This command creates the following files and directories:
 
-If the files are not created, ensure you are in the correct project directory and that the `app/` directory exists.
+* `app/site/`: If it doesn't exist, the `site` directory is created. A `site/.help` file will also be created for category documentation.
+* `app/site/deploy`: The executable `deploy` command script.
+* `app/site/deploy.help`:  The help file for the `deploy` command.
+* `app/site/deploy.usage`: The usage file for the `deploy` command.
 
-**Next Steps:** You can now edit these files to implement the `greet` command's logic and documentation.  See [Help Generation](03_help_generation_.md) for details on writing helpful documentation.
+### Removing the `site/deploy` Command
 
+```bash
+./<your_cli_name> rm site deploy
+```
 
-## Procedure: Removing a command
+This command removes the `app/site/deploy`, `app/site/deploy.help`, and `app/site/deploy.usage` files.
 
-This section details how to remove a command.
+## Internal Implementation
 
-**Prerequisites:** A command created within your `bash-cli` project.
-
-**Procedure:**
-
-1. Navigate to your project's root directory.
-2. Remove the `greet` command:
-   ```bash
-   bash-cli rm greet
-   ```
-   This command deletes the `app/greet.sh`, `app/greet.help`, and `app/greet.usage` files.
-
-**Verification:** Verify that the command files have been removed from your `app/` directory.
-
-**Troubleshooting:** If the command files aren't removed, double-check the command name and ensure you're in the project's root directory.
-
-
-## Reference: Internal Implementation
-
-This section provides a glimpse into the underlying implementation of command creation and removal.
-
-The `create` and `rm` commands directly manipulate the file system within the `app/` directory.
+The `create` and `rm` commands utilize functions within `bash-cli.inc.sh` to validate the project context and manipulate the file system.
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant bash-cli
+    participant CLI
     participant create/rm script
-    participant filesystem
+    participant bash-cli.inc.sh
+    participant File System
 
-    User->>bash-cli: bash-cli create/rm <command>
-    bash-cli->>create/rm script: Execute script
-    create/rm script->>filesystem: Create/Remove files/directories in app/
-    filesystem-->>create/rm script: Confirmation
-    create/rm script-->>bash-cli: Exit code
-    bash-cli-->>User: Success/Failure message
+    User->>CLI: ./<your_cli_name> create/rm <command>
+    activate CLI
+    CLI->>create/rm script: Execute script
+    activate create/rm script
+    create/rm script->>bash-cli.inc.sh: Validate project & resolve paths
+    activate bash-cli.inc.sh
+    bash-cli.inc.sh-->>create/rm script: Return path
+    deactivate bash-cli.inc.sh
+    create/rm script->>File System: Create/Remove files/directories
+    activate File System
+    File System-->>create/rm script: Confirmation
+    deactivate File System
+    create/rm script-->>CLI: Exit code
+    deactivate create/rm script
+    CLI->>User: Output message
+    deactivate CLI
 ```
 
-The relevant code resides in the following files:
+### Key Functions in `bash-cli.inc.sh`
 
-- `app/command/create.sh`:  Handles command creation logic.
-- `app/command/rm.sh`: Handles command removal logic.
-
-Example snippet from `app/command/create.sh` (creating the command file):
+* `bcli_resolve_path`:  Resolves the absolute path of a given path. Used by `create` and `rm` to determine the project's root directory. (See snippet below)
+* `bcli_trim_whitespace`: Trims leading/trailing whitespace. Used in the code to ensure help and other metadata files maintain a consistent format.
 
 ```bash
-cat > "$CMD_DIR/$CMD_NAME" <<EOT
-#!/usr/bin/env bash
-echo -e "\033[36mTODO\033[39m: Implement this command"
-EOT
-chmod +x "$CMD_DIR/$CMD_NAME"
+# bash-cli.inc.sh
+function bcli_resolve_path() {
+    # ... implementation (See source code)
+}
 ```
-This code creates the command file and makes it executable.
 
-Example snippet from `app/command/rm.sh` (removing the command file):
+### Implementation Details in `app/command/create.sh` and `app/command/rm.sh`
 
-```bash
-rm -f "${CMD_DIR:?}/$CMD_NAME"
-```
-This removes the specified command file.
-
+The `create.sh` script uses the resolved path to create the necessary files and directories.  Similarly, `rm.sh` removes the specified command files and directories.  Refer to the provided code snippets for details, but the crucial aspects involve checking for existing commands, creating directories, and writing default content to the `.help` and `.usage` files.
 
 ## Conclusion
 
-This chapter outlined the command structure and associated metadata within a `bash-cli` project.  You now understand how to create and remove commands, laying the foundation for building a fully functional CLI. Next, learn how the CLI dispatches these commands: [Command Dispatcher](02_command_dispatcher_.md).
+This chapter explained how commands are structured and managed within `bash-cli`. By understanding this convention, you can easily extend your CLI with new commands and categories. This structure provides a clear and maintainable way to organize even complex CLIs.  Next, learn how commands are dispatched: [Command Dispatcher](02_command_dispatcher_.md).
 
 
 ---

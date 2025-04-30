@@ -1,111 +1,87 @@
 # Command Dispatcher
 
-This chapter explains how the command dispatcher determines which command to run based on the arguments you provide to your CLI.  Imagine you have a CLI with several subcommands organized like `mycli server start`, `mycli database migrate`, etc. The dispatcher figures out how to execute the right script for `server start` versus `database migrate`.
+This chapter explains how the `bash-cli` framework dispatches commands based on the arguments you provide, enabling a structured and organized command-line interface.  This allows you to create complex CLIs with nested subcommands, making your scripts easier to use and maintain.  We'll explore how arguments are parsed, how commands are matched to their corresponding scripts, and how this mechanism ties into the [Help Generation](03_help_generation_.md) system.
 
-## Concept: Routing Commands
+## Concept: Routing command-line arguments to scripts
 
-The command dispatcher acts like a traffic controller, directing commands to the correct scripts.  It does this by examining the directory structure inside the `app/` directory.  This structure mirrors the command hierarchy. For example, the command `mycli server start` would map to a file located at `app/server/start`. If a directory is found but no final command (e.g., `mycli server`), the dispatcher typically shows the help information for that directory. This is primarily handled by the `bcli_entrypoint` function.
+The command dispatcher is the heart of `bash-cli`, responsible for directing command execution. It uses your command-line arguments to navigate the `app/` directory, locating and executing the correct script.  This allows for nested subcommands, mirroring the directory structure. If a complete command is not specified, or a matching script isn't found, it shows helpful information.
+
+
+## Procedure: Tracing command execution
+
+This example demonstrates how the dispatcher works with the command `cli server start`.
+
+**Prerequisites:** A `bash-cli` project with the following structure:
+
+```
+app/
+├── server/
+│   └── start
+.name
+.version
+.author
+bash-cli.inc.sh
+cli
+help
+```
+
+**Procedure Steps:**
+
+1.  Execute: `cli server start`.
+
+**Verification:** The `app/server/start` script executes.
+
+**Explanation:**
+
+The `bcli_entrypoint` function in `bash-cli.inc.sh` handles command dispatch. Let's break down a simplified version:
+
+```bash
+function bcli_entrypoint() {
+    local root_dir; root_dir=$(dirname "$(bcli_resolve_path "$0")")
+    local cmd_file="$root_dir/app/"
+    local cmd_arg_start=1
+
+    while [[ -d "$cmd_file" && $cmd_arg_start -le $# ]]; do
+        cmd_file="$cmd_file/${!cmd_arg_start}"
+        cmd_arg_start=$((cmd_arg_start+1))
+    done
+
+    local cmd_args=("${@:cmd_arg_start}")
+    "$cmd_file" "${cmd_args[@]}"
+}
+```
+
+1.  `root_dir` is set to the project's root directory.
+2.  `cmd_file` initially points to `app/`.
+3.  The `while` loop iterates through command-line arguments.
+    *   For the first argument (`server`), `cmd_file` becomes `app/server`.
+    *   For the second argument (`start`), `cmd_file` becomes `app/server/start`.
+4.  `cmd_args` will contain any remaining arguments after the command.
+5.  Finally, the script at `app/server/start` is executed.
+
+
+## Reference: Internal implementation details
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant CLI
-    participant Dispatcher as bcli_entrypoint
-    participant Help System
-    participant Command Script
+    participant CLI as cli script
+    participant EP as bcli_entrypoint
+    participant Loop as Argument Loop
+    participant Cmd as Command Script
 
-    User->>CLI: mycli server start
-    activate CLI
-    CLI->>Dispatcher: server start
-    activate Dispatcher
-    Dispatcher->>Dispatcher: Search app/server/start
-    Dispatcher->>Command Script: Execute app/server/start
-    activate Command Script
-    Command Script-->>Dispatcher: Exit code
-    deactivate Command Script
-    Dispatcher-->>CLI: Exit code
-    deactivate Dispatcher
-    deactivate CLI
-
-    User->>CLI: mycli server
-    activate CLI
-    CLI->>Dispatcher: server
-    activate Dispatcher
-    Dispatcher->>Dispatcher: Search app/server/
-    Dispatcher->>Help System: Show help for app/server/
-    activate Help System
-    Help System-->>Dispatcher: Done
-    deactivate Help System
-    Dispatcher-->>CLI: Exit code
-    deactivate Dispatcher
-    deactivate CLI
-
+    CLI->>EP: Calls bcli_entrypoint "$@"
+    EP->>Loop: Iterates through arguments
+    Loop->>Loop: Checks if argument is a directory
+    Loop->>Cmd: Executes located command script with remaining arguments
 ```
 
+The `cli` script calls `bcli_entrypoint`.  `bcli_entrypoint` then iterates through the command-line arguments, building a path to the command script within the `app/` directory.  Finally, it executes the script, passing any remaining arguments.
 
-## Reference: `bcli_entrypoint` Implementation
-
-The core logic resides within the `bcli_entrypoint` function (in `bash-cli.inc.sh`).  It breaks down as follows:
-
-1. **Resolve Paths:**  Determines the absolute path of the CLI script using `bcli_resolve_path`.
-
-    ```bash
-    root_dir=$(dirname "$(bcli_resolve_path "$0")")
-    ```
-    This line obtains the absolute path to the directory containing the main CLI script.
-
-
-2. **Command Location:**  Iterates through the provided command arguments, building a path within the `app/` directory.
-
-    ```bash
-    cmd_file="$root_dir/app/"
-    # ... loop through arguments to build command path ...
-    cmd_file="$cmd_file/${!cmd_arg_start}"
-    ```
-    These lines construct the path to the command script within the `app/` directory based on the provided arguments.
-
-3. **Help Handling:**  If the built path is a directory, or if the `--help` flag is present, the [Help Generation](03_help_generation_.md) system is invoked. Also delegates to the help system if a command file is not found.
-
-    ```bash
-    if [ -d "$cmd_file" ]; then
-        "$root_dir/help" "$0" "$@"
-        exit 3
-    ```
-    This code snippet shows how the help system is invoked if a directory is found. Similar logic handles `--help` and missing commands.
-
-4. **Command Execution:**  If a valid command file is found, it's executed.
-
-    ```bash
-    "$cmd_file" "${cmd_args[@]}"
-    EXIT_CODE=$?
-    ```
-    This executes the target command script with the remaining arguments. The exit code is captured for subsequent processing.
-
-
-## Procedure: Using the dispatcher
-
-### Prerequisites
-
-Have a Bash CLI project utilizing the `bash-cli` framework.
-
-### Steps
-
-1. Define your command structure within the `app/` directory.  For example, to support `mycli server start`, create `app/server/start`.
-2. Place the command logic within the corresponding files.
-3. Call `bcli_entrypoint "$@"` in your main CLI script.
-
-### Verification
-
-Run your CLI with different arguments. Observe the output and exit codes to ensure the correct commands are executed.
-
-### Troubleshooting
-
-* **Command not found:** Verify the directory structure within `app/` matches your command structure.
-* **Incorrect command executed:** Ensure the dispatcher logic correctly parses and routes the commands.
+The complete `bcli_entrypoint` function (in `bash-cli.inc.sh`) also includes error handling and integration with the [Help Generation](03_help_generation_.md) system, as detailed in the previous example's explanation.
 
 ## Conclusion
 
-The command dispatcher simplifies command handling by automatically mapping CLI arguments to command scripts. This makes your CLI more organized and easier to maintain. For more on generating help documentation, see [Help Generation](03_help_generation_.md).
+The command dispatcher provides a flexible and powerful way to manage command-line arguments and route execution to the correct scripts. This is crucial for building maintainable and scalable command-line applications. Next, let’s examine how [Help Generation](03_help_generation_.md) works.
 
 
 ---

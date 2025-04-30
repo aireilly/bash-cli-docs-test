@@ -1,110 +1,88 @@
 # Bash Completion Logic
 
-This chapter explains how bash completion works in `bash-cli`, enabling interactive command suggestions as you type.  Imagine you're using a command-line tool with many subcommands and options. Typing everything out manually can be tedious and error-prone. Bash completion solves this by suggesting available commands, subcommands, and the `--help` argument as you type, improving efficiency and reducing errors.
+This chapter explains how bash completion works in `bash-cli`, enabling interactive command suggestions as you type.  Imagine you're using a CLI with many nested commands and arguments; typing everything out manually can be tedious and error-prone. Bash completion solves this by suggesting available commands, subcommands, and the `--help` argument as you type.
 
-## Concept: Auto-completion for Commands and Arguments
+## Concept: Auto-completion in Bash
 
-Bash completion enhances the command-line experience by dynamically suggesting possible completions for commands and their arguments.  This is triggered when the user presses the Tab key.  This helps users discover available commands, remember their syntax, and avoid typos.
+Bash completion enhances the user experience by predicting and suggesting possible completions for commands and their arguments. This reduces typing errors and speeds up command entry, especially for complex CLIs.  It leverages the `complete` bash builtin and completion scripts to provide context-aware suggestions.
 
-### How Bash Completion Works
+## Enabling bash completion for your CLI
 
-`bash-cli` analyzes the directory structure within the `app/` directory to understand the available commands and subcommands.  It leverages the `bcli_bash_completions` function to generate these suggestions.  During installation, the `complete` script integrates this functionality into the system's bash completion mechanism.
+This section explains how bash completion is implemented and integrated into the `bash-cli` project.
 
-## Procedure: Enabling bash completion
+### Installation and the `complete` script
 
-This section guides you on how bash completion is integrated during installation.
+During [CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md), the `install.sh` script registers the completion logic.  It creates a file in `/etc/bash_completion.d/` that sources the `complete` script and registers the `_bash_cli` function for the installed CLI. This ensures completion is available whenever you use the CLI.
 
-### Prerequisites
+```bash
+# File: app/install.sh (simplified)
+cat > "/etc/bash_completion.d/<CLI_NAME>" <<EOC
+source "<APP_DIR>/complete"
+complete -F _bash_cli <CLI_NAME>
+EOC
+```
 
-- A `bash-cli` project initialized using the `init` command (covered in a later chapter).
-- Installation script ready to be executed.
-
-### Installation Steps
-
-1.  The installation process begins by creating a symbolic link from the `cli` script in your project's root directory to the desired installation location (e.g., `/usr/bin/<CLI name>`).  This makes the CLI accessible system-wide.
-
-    ```bash
-    ln -s "$APP_DIR/cli" "$FOLDER/$NAME"
-    ```
-
-    This command creates a symbolic link named `<NAME>` in the `<FOLDER>` directory, pointing to the `cli` script in your project directory.
-
-2.  Next, a completion script is added to `/etc/bash_completion.d/`.  This script tells bash how to perform completions for your CLI.
-
-    ```bash
-    cat > "/etc/bash_completion.d/$NAME" <<EOC
-    source "$APP_DIR/complete"
-    complete -F _bash_cli $NAME
-    EOC
-    ```
-
-    This command creates a file named `<NAME>` in `/etc/bash_completion.d/`.  The content sources the `complete` script from your project and registers the `_bash_cli` function as the completion function for your CLI.
+This code snippet from `app/install.sh` creates a bash completion definition file for `<CLI_NAME>`. It sources the `complete` script which contains the `_bash_cli` function, and tells bash to use that function for completions for `<CLI_NAME>`.
 
 
-### Verification
+### The `_bash_cli` function
 
-Open a new terminal and try typing the first few letters of your CLI's name followed by the Tab key.  Bash should suggest the full name of your CLI.
+The `complete` script defines the `_bash_cli` function, which acts as the entry point for completion suggestions. It sources the `bash-cli.inc.sh` file, which contains the core completion logic, and calls `bcli_bash_completions`.
 
-### Troubleshooting
+```bash
+# File: complete (simplified)
+_bash_cli() {
+    . "<ROOT_DIR>/bash-cli.inc.sh"
+    bcli_bash_completions
+}
+```
 
-If completion doesn't work, ensure the installation script ran successfully and that the files in `/etc/bash_completion.d/` are sourced correctly by your bash configuration.
+This code snippet shows the `_bash_cli` function, which is called by bash whenever completion is triggered for the registered CLI name. This function sources `bash-cli.inc.sh` to include necessary helper functions, then calls the `bcli_bash_completions` function to perform the actual completion logic.
 
-## Reference: Core Components of Bash Completion
+### The `bcli_bash_completions` function
 
-The following components are key to understanding the bash completion logic:
-
--   `app/`:  The directory structure within `app/` defines the available commands and subcommands.
--   `bcli_bash_completions`: The core function that generates completion suggestions based on the current input and the `app/` directory structure. This function is defined in `bash-cli.inc.sh`.
--   `complete`:  The script responsible for integrating the completion logic with bash. This script sources `bash-cli.inc.sh` to access the `bcli_bash_completions` function.
--   `.complete` files: Optional files within the `app/` directory that allow developers to add custom completion logic for specific commands (see below).
-
-## Concept: Custom Command Completions
-
-You can further customize completion by creating `.complete` files. Let's say you have a command `app/mycommand` that takes a filename as an argument.  You could create `app/mycommand.complete` to provide file completion for that argument.  This is implemented within the `bcli_bash_completions` function found in `bash-cli.inc.sh`:
+This function in `bash-cli.inc.sh` analyzes the current command, determines the context ([Command Structure & Metadata](01_command_structure___metadata_.md)), and generates appropriate suggestions. It uses `find` to list available subcommands in a directory and `compgen` to filter suggestions based on user input.  It also always suggests `--help`.  Custom completions can be added via `.complete` files next to command files. These custom completions should output words separated by spaces, and can be dynamic based on any logic the user wants.
 
 
 ```bash
-# ... inside bcli_bash_completions
-if [ -f "${cmd_file}.complete" ]; then
-    COMPREPLY=($(compgen -W "--help $(source "${cmd_file}.complete")" -- "$curr_arg" ) )
-    return
-# ...
+# File: bash-cli.inc.sh (simplified - directory completion)
+bcli_bash_completions() {
+  # ... (Context determination - see Command Dispatcher)
+  if [ -d "$cmd_file" ]; then
+    # ... (Building list of subcommands)
+    COMPREPLY=($(compgen -W "$(printf '%s\n' "${opts[@]}")" -- "$curr_arg"))
+  fi
+}
 ```
-If a `.complete` file is present alongside the command, it's sourced, and its output, along with `--help`, is used for completion suggestions.  For our example, the `.complete` file could contain:
 
-```bash
-# app/mycommand.complete
-*.txt
-```
-This would suggest all `.txt` files in the current directory.
+This simplified code snippet shows how directory completion works. It uses `find` to get a list of subcommands in the current directory, and `compgen` to filter and present those options to the user.  This code has been significantly simplified; refer to the full `bash-cli.inc.sh` file for the complete implementation, including `--help` generation and custom completions.
 
-
-## Internal Implementation
-
-The following sequence diagram illustrates the interaction between bash, the `complete` script, and `bash-cli.inc.sh` during completion:
+### Sequence Diagram
 
 ```mermaid
 sequenceDiagram
+    participant User
     participant Bash
-    participant Complete Script
+    participant complete script
     participant bash-cli.inc.sh
 
-    Bash->>Complete Script: Calls _bash_cli function
-    activate Complete Script
-    Complete Script->>bash-cli.inc.sh: Calls bcli_bash_completions
-    activate bash-cli.inc.sh
-    bash-cli.inc.sh-->>Complete Script: Returns completion suggestions
-    deactivate bash-cli.inc.sh
-    Complete Script-->>Bash: Returns completion suggestions
-    deactivate Complete Script
+    User->>Bash: Types command and presses Tab
+    Bash->>complete script: Calls _bash_cli function
+    complete script->>bash-cli.inc.sh: Sources and calls bcli_bash_completions
+    bash-cli.inc.sh->>bash-cli.inc.sh: Determines context
+    bash-cli.inc.sh->>bash-cli.inc.sh: Generates suggestions
+    bash-cli.inc.sh->>Bash: Returns suggestions (COMPREPLY)
+    Bash->>User: Displays suggestions
 ```
 
-Bash triggers the registered completion function (`_bash_cli`).  The `_bash_cli` function, defined within `complete`, calls the `bcli_bash_completions` function from `bash-cli.inc.sh`. The `bcli_bash_completions` function analyzes the command structure within the `app/` directory and current input, then returns completion suggestions back to bash.
+## Example Usage
+
+If you have a command `mycli tool subtool`, typing `mycli tool s` and pressing Tab will suggest `subtool`. Typing `mycli tool subtool ` and pressing Tab will suggest `--help`, and any custom completions provided by a `subtool.complete` file alongside the `subtool` executable.
 
 
 ## Conclusion
 
-Bash completion significantly improves the user experience of `bash-cli` projects.  By providing interactive suggestions, it streamlines command execution and minimizes errors.  [CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md) is the next chapter.
+Bash completion significantly improves the user experience of `bash-cli` based CLIs. It provides context-aware suggestions, reducing typing errors and making complex commands easier to use. The system is flexible enough to accommodate custom completion logic as needed.  Next, let's explore how to install and uninstall your CLI: [CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md).
 
 
 ---
