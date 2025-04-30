@@ -1,90 +1,126 @@
 # CLI Installation & Uninstallation
 
-You've created a fantastic new command-line interface (CLI) using `bash-cli`, but it's currently only accessible within your project directory.  How do you make it available system-wide, so you can use it from anywhere? This chapter covers installing and uninstalling your CLI, making it globally accessible or removing it when needed.
+You've built a fantastic Bash CLI, but it's currently confined to your project directory.  This chapter will guide you through making your CLI globally accessible from anywhere in your system, and how to remove it when needed. We'll use the `install.sh` and `uninstall.sh` scripts to achieve this.
 
-## Making Your CLI Globally Accessible
+## Installing your CLI
 
-Imagine you have a CLI named `mycli`.  After development, you want to run `mycli <command>` from any directory, just like any other command-line tool. The installation process accomplishes this by creating a symbolic link to your CLI's entrypoint script in a location within your system's `PATH`.
+### Concept: Making your CLI globally accessible
 
-### Installation Procedure
+This section explains how to make your CLI executable from any location in your terminal. This involves creating a symbolic link (symlink) from your CLI's entrypoint script to a directory within your system's `PATH`. We'll also set up bash completion.
 
-**Prerequisites:**
+### Procedure: Installing the CLI
 
-* A completed `bash-cli` project.
-* Appropriate permissions for the installation location (often `/usr/bin`).
+#### Prerequisites
 
-**Procedure:**
+- A completed Bash CLI project.
+- Appropriate permissions for creating symlinks and writing to system directories (likely requiring `sudo`).
 
-1. Navigate to your project's root directory.
-2. Run the `install.sh` script, providing the desired name for your CLI and optionally the installation folder (defaults to `/usr/bin`):
+#### Procedure Steps
+
+1. Navigate to your project's root directory in your terminal.
+2. Run the install script, providing the desired name for your CLI and optionally the installation directory (defaults to `/usr/bin`):
 
 ```bash
-./app/install.sh <cli_name> [<installation_folder>] 
+sudo ./app/install.sh <cli_name> [<install_directory>]
 ```
+
 For example:
-```bash
-./app/install.sh mycli
-```
-This installs `mycli` to `/usr/bin`. Or:
-```bash
-./app/install.sh mycli /usr/local/bin
-```
-This installs `mycli` to `/usr/local/bin`.
-
-**Verification:**
-
-Try running `<cli_name>` from a different directory. If the installation was successful, your CLI should execute.
-
-**Troubleshooting:**
-
-If you encounter permission errors, try running the installation command with `sudo`.
-
-### Implementation Details: `install.sh`
-
-The `install.sh` script performs several key actions:
-
-1. **Project Validation:**  It checks if you are running the script from within a `bash-cli` project by looking for the `.bash_cli` marker file (see [Project Context & Validation](06_project_context___validation_.md)).
-
-2. **Symbolic Link Creation:** It creates a symbolic link from your project's `cli` entrypoint script to the specified installation folder. This allows you to execute the CLI using its name from anywhere in your system.
-
-3. **Bash Completion Setup:**  It configures bash completion by creating a file in `/etc/bash_completion.d/` that sources your project's `complete` script (see [Bash Completion Logic](04_bash_completion_logic_.md)).
 
 ```bash
-# Creates the symbolic link
-ln -s "$APP_DIR/cli" "$FOLDER/$NAME"
-
-# Sets up bash completion
-cat > "/etc/bash_completion.d/$NAME" <<EOC
-source "$APP_DIR/complete"
-complete -F _bash_cli $NAME
-EOC
+sudo ./app/install.sh mycli /usr/local/bin
 ```
 
-### Uninstallation Procedure
+#### Verification
 
-1. Navigate to your project's root directory.
-2. Run the `uninstall.sh` script with the name of your CLI and, optionally, the installation folder:
+Check that the symlink has been created:
 
 ```bash
-./app/uninstall.sh <cli_name> [<installation_folder>]
+ls -l <install_directory>/<cli_name>
 ```
 
-**Verification:**
+The output should show a symlink pointing to your `cli` file within your project.  Also verify bash completion by typing your CLI name followed by Tab.
 
-Check that `<cli_name>` is no longer available in the specified installation folder.
+#### Troubleshooting
 
-### Implementation Details: `uninstall.sh`
+- **Permission denied:** Ensure you're using `sudo` or have the necessary permissions to write to the target directory.
+- **Symlink already exists:**  If a command with the same name already exists, choose a different name for your CLI or uninstall the conflicting command first.
 
-Similar to `install.sh`, `uninstall.sh` validates the project context and ensures that the symbolic link points to the correct location within your project before removing it.
+### Internal Implementation
+
+The `install.sh` script performs the following actions:
+
+1. **Project Validation:** Verifies it's running within a Bash CLI project using the presence of the `.bash_cli` marker file (See [Project Context & Validation](06_project_context___validation_.md)).
+2. **Symlink Creation:** Creates a symlink from the `cli` entrypoint script to the specified installation directory (e.g., `/usr/bin`).
+3. **Bash Completion Setup:** Creates a bash completion script in `/etc/bash_completion.d/` which sources the `complete` script (See [Bash Completion Logic](04_bash_completion_logic_.md)) within your project.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant install.sh
+    participant cli
+    participant complete
+    participant System PATH
+
+    User->>install.sh: Execute with <cli_name>
+    install.sh->>cli: Create symlink in System PATH
+    install.sh->>complete: Set up bash completion
+    complete->>System PATH: Register completion function
+```
+
+## Uninstalling your CLI
+
+### Concept: Removing your CLI
+
+This involves removing the symlink created during installation and the bash completion script.
+
+### Procedure: Uninstalling the CLI
+
+#### Prerequisites
+
+- Appropriate permissions for removing files from system directories (likely requiring `sudo`).
+
+#### Procedure Steps
+
+1. Navigate to your project's root directory in your terminal.
+2. Run the uninstall script, providing the name of your CLI and optionally the installation directory:
 
 ```bash
-# Removes the symbolic link
-rm "$FOLDER/$NAME"
+sudo ./app/uninstall.sh <cli_name> [<install_directory>]
 ```
+
+For example:
+
+```bash
+sudo ./app/uninstall.sh mycli /usr/local/bin
+```
+
+
+#### Verification
+
+Check that the symlink and the bash completion script have been removed:
+
+```bash
+ls <install_directory>/<cli_name>  # Should return an error
+ls /etc/bash_completion.d/<cli_name> # Should return an error
+```
+
+#### Troubleshooting
+
+- **Permission denied:** Use `sudo`.
+- **File not found:** Verify the CLI name and installation directory are correct.
+
+### Internal Implementation
+
+The `uninstall.sh` script:
+
+1. **Project Validation:** Checks if within a Bash CLI project.
+2. **Symlink Validation:** Checks if the symlink exists and points to the correct `cli` file within the project.
+3. **Symlink Removal:** Removes the symlink.
+4. **Bash Completion Removal:** Removes the bash completion script.
 
 ## Conclusion
 
-This chapter explained how to install and uninstall your `bash-cli` projects, enabling you to make them globally accessible and easily manage their lifecycle. You learned how to use `install.sh` and `uninstall.sh`, and explored their underlying mechanisms. This sets the stage for understanding how the project maintains its context and performs validations, covered in the next chapter: [Project Context & Validation](06_project_context___validation_.md).
+You now know how to install and uninstall your Bash CLI, making it readily accessible or removing it cleanly from your system.  This empowers you to distribute and manage your CLI effectively.  Next, let’s delve into [Project Context & Validation](06_project_context___validation_.md). 
 
 
 ---

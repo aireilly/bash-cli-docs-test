@@ -1,79 +1,98 @@
 # Core Function Library
 
-This chapter introduces the core function library of `bash-cli`, a central include file that houses shared Bash functions.  Imagine you're building a command-line interface with multiple subcommands. You want to avoid repeating code for tasks like displaying help messages, processing paths, or trimming whitespace. The core function library solves this by providing reusable utility functions.  This chapter explains how.
+This chapter explores the core function library, a central include file (`bash-cli.inc.sh`) that houses shared Bash functions, promoting code reuse and consistency throughout the framework. Imagine you are building a CLI and want to add common functionalities like path resolution, string manipulation, and formatted output without rewriting the code for each command. The core function library provides these ready-to-use utilities.
 
-## Overview
+## Concept: Understanding the Core Function Library
 
-The `bash-cli` framework relies on a central include file, `bash-cli.inc.sh`, which contains common Bash functions. This promotes code reuse and ensures consistency across different parts of your CLI. Key functionalities include:
+**What:** The Core Function Library is a set of reusable Bash functions located in `bash-cli.inc.sh`.  **Why:**  It provides consistent implementations of common tasks, reducing code duplication and improving maintainability across your CLI commands. It handles tasks like path resolution, string manipulation, output formatting, and the core logic for command dispatch, help generation, and completion.
 
-* **Path Resolution:**  `bcli_resolve_path <path>` resolves a given `<path>` to its absolute, canonical form.
-* **String Manipulation:** `bcli_trim_whitespace "<string>"` removes leading and trailing whitespace from `<string>`.
-* **Output Formatting:** Predefined color constants (e.g., `COLOR_RED`, `COLOR_GREEN`) and functions like `bcli_show_header <project_root>` for consistent output.
-* **Core Logic:**  Functions like `bcli_entrypoint`, `bcli_help`, and `bcli_bash_completions` handle command dispatching, help generation, and Bash completions, respectively.
+### Key Concepts
 
-## Using the Core Functions
+* **Centralized Functions:**  All core functions reside in `bash-cli.inc.sh`, making them easily accessible and modifiable.
+* **Standardized Implementation:** The library ensures consistent behavior for common tasks, preventing inconsistencies across different commands.
+* **Code Reusability:**  Instead of rewriting common functionalities, you can simply call the pre-built functions, saving development time and effort.
 
-Let's walk through how these functions can be used within your CLI.
 
-### Path Resolution
+## Procedure: Using the Core Function Library
 
-```bash
-source bash-cli.inc.sh
+**What:** This section describes how to use the functions within the Core Function Library.  **Why:** By understanding how to call these functions, you can leverage the library's capabilities in your own CLI commands.
 
-relative_path="./some/relative/path"
-absolute_path=$(bcli_resolve_path "$relative_path")
-echo "$absolute_path" # Outputs the absolute path of ./some/relative/path
+### Prerequisites
+
+* A Bash environment.
+* The `bash-cli.inc.sh` file in your project.
+
+### Procedure
+
+1. **Include the library:**  Source the `bash-cli.inc.sh` file in your script.
+
+   ```bash
+   . "<path_to_bash-cli.inc.sh>"
+   ```
+   This makes all functions within the included file available in your current script.  Replace `<path_to_bash-cli.inc.sh>` with the actual path.
+
+2. **Call a function:** Use the function name followed by arguments. For example, to resolve a path:
+
+   ```bash
+   resolved_path=$(bcli_resolve_path "<path_to_resolve>")
+   echo "$resolved_path"
+   ```
+   This calls the `bcli_resolve_path` function with the given path and stores the result in the `resolved_path` variable. The output will be the absolute resolved path.
+
+3.  **Use color constants:** To format output with color, use the provided constants:
+
+    ```bash
+    echo -e "${COLOR_RED}This is red text${COLOR_NORMAL}"
+    ```
+    This will print the text "This is red text" in red. The `COLOR_NORMAL` constant resets the color to the default.
+
+### Verification
+
+* Check that the functions produce the expected output. For `bcli_resolve_path`, verify the path is correctly resolved. For string manipulation and output formatting, visually inspect the results.
+
+### Troubleshooting
+
+* **Function not found:** Ensure that `bash-cli.inc.sh` is sourced correctly with the correct path.
+* **Unexpected output:** Double-check the function arguments and review the function's implementation in `bash-cli.inc.sh` for potential issues.
+
+
+## Reference: Internal Implementation
+
+This section dives into the internal implementation of the Core Function Library.
+
+The `bash-cli.inc.sh` file contains the implementation of the core functions. These functions leverage standard Bash commands and utilities.  For instance, `bcli_resolve_path` uses `realpath` (if available) or a Perl fallback for path resolution.  `bcli_trim_whitespace` leverages parameter expansion for string manipulation.  [Command Dispatcher](02_command_dispatcher_.md), [Help Generation](03_help_generation_.md), and [Bash Completion Logic](04_bash_completion_logic_.md) are implemented using functions like `bcli_entrypoint`, `bcli_help`, and `bcli_bash_completions`, respectively.
+
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant bcli_entrypoint
+    participant bcli_help
+    participant bcli_bash_completions
+    participant Command
+
+    CLI->>bcli_entrypoint: Execute command
+    bcli_entrypoint->>bcli_help: Show help if needed
+    bcli_entrypoint->>bcli_bash_completions: Provide completions
+    bcli_entrypoint->>Command: Execute the located command
 ```
-This snippet demonstrates how to use `bcli_resolve_path` to convert a relative path to an absolute one.
 
-### String Manipulation
-
-```bash
-source bash-cli.inc.sh
-
-string_with_spaces="  string with spaces   "
-trimmed_string=$(bcli_trim_whitespace "$string_with_spaces")
-echo "$trimmed_string" # Outputs: "string with spaces"
-```
-This example shows how `bcli_trim_whitespace` removes extra spaces.
-
-### Output Formatting
-
-```bash
-source bash-cli.inc.sh
-
-bcli_show_header <project_root> # Displays the project's header information (name, version, author).
-```
-This call will display header information using the `bcli_show_header` function. This function retrieves project metadata from files within the project directory (e.g., `.name`, `.version`, `.author`) and prints a formatted header to the console.
-
-
-## Internal Implementation
-
-The core functions are implemented in `bash-cli.inc.sh`. This file is sourced by both the main `cli` script and the `complete` script. The `cli` script utilizes the `bcli_entrypoint` function to handle command dispatching, which is described in detail in [Command Dispatcher](02_command_dispatcher_.md). Similarly, the `complete` script uses `bcli_bash_completions` for Bash completion, as explained in [Bash Completion Logic](04_bash_completion_logic_.md). The `bcli_help` function is used for generating help documentation, detailed in [Help Generation](03_help_generation_.md).
-
-### Example: bcli_entrypoint Simplified
+Example: The `bcli_resolve_path` function:
 
 ```bash
 # ... other functions ...
 
-function bcli_entrypoint() {
-    # ... (Omitted: Path resolution and command locating logic) ...
-
-    # ... (Omitted: Help handling logic) ...
-
-    # Execute the command and capture its exit code
-    "$cmd_file" "${cmd_args[@]}"
-    EXIT_CODE=$?
-
-    # ... (Omitted: Exit code handling) ...
+function bcli_resolve_path() {
+    # ... implementation details (see bash-cli.inc.sh) ...
 }
+
+# ... more functions ...
 ```
 
-This simplified snippet shows the core function of `bcli_entrypoint`.  For full details, please refer to the `bash-cli.inc.sh` file.  The command dispatcher logic is described further in the [Command Dispatcher](02_command_dispatcher_.md) chapter.
+This function resolves paths using `realpath` or a Perl fallback, as explained earlier.  Refer to the `bash-cli.inc.sh` file for the complete implementation of each function.
 
 ## Conclusion
 
-The core function library in `bash-cli.inc.sh` provides a set of reusable functions that simplify common CLI development tasks, from path manipulation and output formatting to command dispatching and help generation. By centralizing these functions, `bash-cli` promotes code reuse, consistency, and maintainability.  Now that we've explored the core library, we can delve deeper into how `bash-cli` manages [CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md).
+The Core Function Library is a vital component of the `bash-cli` framework, ensuring consistency and reducing redundancy. By understanding its usage and internal workings, you can effectively utilize its functions to build powerful and maintainable CLIs.  Next, let us delve into [CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md).
 
 
 ---

@@ -1,94 +1,105 @@
 # Help Generation
 
-This chapter explains how the `bash-cli` project generates help documentation, allowing you to understand how to use available commands and subcommands.  Imagine you are adding a new command to your CLI and want to ensure users can access clear instructions. This chapter will guide you through how `bash-cli` handles help generation.
+This chapter explains how the `bash-cli` framework generates help documentation, allowing you to easily guide your users on how to use your CLI.  Imagine you're creating a new command and want users to understand its purpose and arguments.  The help generation system provides the structure and mechanisms to present this information clearly.
 
-## Key Concepts
+## Concept: Help System Overview
 
-Help generation in `bash-cli` is triggered in three primary ways:
+This section describes how the help system works within the `bash-cli` framework.
 
-* **Explicit Help Request:** Using the `help` command.
-* **Implicit Help Request:**  Entering an incomplete or invalid command.
-* **Command-Level Help Request:** Providing the `--help` argument to a specific command or a command script exiting with code 3.
+The `bash-cli` help system displays information about your CLI commands.  It's activated in three ways:
+
+* **Explicitly:** Using the `help` command.
+* **Implicitly:** When an incomplete or invalid command is entered.
+* **Command-Specific:** When a command script exits with code 3 or receives the `--help` argument.
+
+The system reads `.help` (detailed explanation) and `.usage` (quick usage summary) files located alongside your command scripts or within directories to build the help output. For directories, it also lists available subcommands.  The `bcli_help` function is the heart of this system.
+
+## Procedure: Displaying Help
+
+This section describes how to trigger help documentation.
+
+### Prerequisites
+
+A `bash-cli` project should be initialized ([CLI Installation & Uninstallation](05_cli_installation___uninstallation_.md)).
+
+### Procedure Steps
+
+1. **Explicit Help:** Run `bash-cli help <command_path>`.  For example, `bash-cli help create` displays help for the `create` command.
+
+2. **Implicit Help:** Enter an incomplete or invalid command, like `bash-cli creat`.  The system will show help related to the closest matching command or directory.
+
+3. **Command-Specific Help:**  Two ways to trigger help from within a command:
+    * **Exit Code:** In your command script, `exit 3` to display its help.
+    * **`--help` Argument:** Include logic in your command script to handle the `--help` argument and display its help.  Example:
+
+    ```bash
+    # --- File: app/command/my_command.sh ---
+    if [[ "$1" == "--help" ]]; then
+        # Display help specific to my_command
+        cat my_command.help
+        exit 0
+    fi
+    # ... rest of your command logic ...
+    ```
 
 
-The system relies on `.help` and `.usage` files within your project's command directories. The `.help` file provides detailed information about a command or directory, while the `.usage` file offers a concise usage summary. For directories, the help output also lists available subcommands.  The `bcli_help` function is the core component responsible for handling all help-related logic.
+### Verification
 
-## Using Help Generation
+Run the commands mentioned above. Ensure the expected help information is displayed.
 
-Let us consider the scenario where you have a CLI with a `create` command:
+### Troubleshooting
 
-```bash
-./<your_cli> create <command_name>
-```
+If help is not displayed:
+1. Verify `.help` and `.usage` files exist in the correct locations.
+2. Check your command script's exit code and `--help` argument handling.
 
-If you want to get help about this command, you can use:
+## Reference: Help File Structure
 
-```bash
-./<your_cli> help create
-```
+Help files are structured to provide both concise usage information and detailed explanations.
 
-This will display the content of the `app/create.help` and `app/create.usage` files.
+* **`.usage`:**  Contains a brief usage summary, often showing argument formats.  Example: `ARGS...`
 
-If you enter an invalid command such as:
+* **`.help`:** Provides a detailed explanation of the command, its arguments, and its purpose.
 
-```bash
-./<your_cli> nonexistent_command
-```
+## Concept: Internal Implementation
 
-`bash-cli` will display help information related to the root of your CLI application, showing available top-level commands.
-
-
-## Internal Implementation
-
-The following sequence diagram illustrates a simplified help request flow:
+The `bcli_help` function in `bash-cli.inc.sh` handles help generation.
 
 ```mermaid
 sequenceDiagram
-    participant CLI as Command Line Interface
-    participant Dispatcher as Command Dispatcher
-    participant HelpGen as Help Generator (bcli_help)
-    participant FS as Filesystem
+    participant User
+    participant CLI
+    participant bcli_entrypoint
+    participant bcli_help
+    participant Command
 
-    CLI->>Dispatcher: ./<your_cli> help create
-    Dispatcher->>HelpGen: Call bcli_help("create")
-    HelpGen->>FS: Read app/create.help
-    HelpGen->>FS: Read app/create.usage
-    FS-->>HelpGen: File Content
-    HelpGen->>CLI: Display Help Output
+    User->>CLI: Executes command with --help or invalid command
+    CLI->>bcli_entrypoint: Processes command
+    bcli_entrypoint->>bcli_help: Calls bcli_help with command path
+    bcli_help->>Command: Reads .help and .usage files
+    Command->>bcli_help: Returns help content
+    bcli_help->>CLI: Returns help content
+    CLI->>User: Displays help
 ```
 
-The [Command Dispatcher](02_command_dispatcher_.md) receives the command and arguments.  If a help request is detected, it calls the `bcli_help` function.  `bcli_help` retrieves relevant information from the filesystem and displays it to the user.
-
-### Code Deep Dive
-
-The main logic resides in the `bcli_help` function within `bash-cli.inc.sh`.
+The `bcli_entrypoint` function calls `bcli_help` when needed, passing the path to the command or directory for which help is required.  `bcli_help` then locates and displays the appropriate `.help` and `.usage` files.
 
 ```bash
-# bash-cli.inc.sh
-
+# --- File: bash-cli.inc.sh ---
 function bcli_help() {
-    # ... (setup and locating help files) ...
-
-    # Display help for a directory
-    if [[ -d "$help_file" ]]; then
-        # ... (display directory help and subcommands) ...
-        exit 0
+    # ... (simplified for brevity) ...
+    if [[ -f "$help_file.help" ]]; then
+        cat "$help_file.help"
+        # ...
     fi
-
-    # Display help for a command file
-    echo -en  "${COLOR_GREEN}$cli_entrypoint ${COLOR_CYAN}${*:2:$((help_arg_start-1))} ${COLOR_NORMAL}"
-    # ... (display .usage and .help content) ...
 }
 ```
 
-The code first locates the directory or command file specified by the user's input. If a directory is found, it lists available subcommands. If a command file is found, the corresponding `.usage` and `.help` files are displayed. The [Command Structure & Metadata](01_command_structure___metadata_.md) chapter details how commands and metadata are organized within `bash-cli`.
 
 
 ## Conclusion
 
-The help generation system in `bash-cli` provides a structured mechanism to guide your users.  By leveraging `.help` and `.usage` files, you can create comprehensive documentation that makes your CLI user-friendly.
-
-[Next Chapter: Bash Completion Logic](04_bash_completion_logic_.md)
+This chapter covered the help generation system in `bash-cli`, enabling you to create user-friendly documentation for your CLI.  You learned how to trigger help, structure help files, and understand the underlying implementation.  Next, learn about [Bash Completion Logic](04_bash_completion_logic_.md).
 
 
 ---
